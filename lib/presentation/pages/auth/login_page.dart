@@ -1,131 +1,163 @@
-import 'package:attendly_app/core/services/preference_service.dart';
-import 'package:attendly_app/data/datasources/user_local_datasource.dart';
-import 'package:attendly_app/presentation/pages/dashboard/dashboard_page.dart';
-import'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import '../../../presentation/providers/auth_provider.dart';
+import '../../../presentation/pages/dashboard/dashboard_page.dart';
+import '../../../presentation/pages/auth/register_page.dart';
+import '../../../core/constants/app_color.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => LoginPage();
+  State<LoginPage> createState() => _LoginPageState();
 }
 
-class LoginPage extends State<LoginPage> {
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-  final userDataSource = UserLocalDatasource();
+class _LoginPageState extends State<LoginPage> {
+  final _formKey = GlobalKey<FormState>();
+  final emailCtrl = TextEditingController();
+  final passwordCtrl = TextEditingController();
+  bool isLoading = false;
 
-  void _login() async {
-    final email = emailController.text.trim();
-    final password = passwordController.text.trim();
+  Future<void> _handleLogin() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() => isLoading = true);
 
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all fields')),
-      );
-      return;
-    }
+      final success = await Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ).login(emailCtrl.text.trim().toLowerCase(), passwordCtrl.text.trim());
 
-    final user = await userDataSource.validateUser(email, password);
+      setState(() => isLoading = false);
 
-    if (user != null) {
-      await PreferenceService.setLoginStatus(true);
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardPage()));
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid email or password')),
-      );
+      if (success && mounted) {
+        Fluttertoast.showToast(msg: "Login successful!");
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const DashboardPage()),
+        );
+      } else {
+        Fluttertoast.showToast(msg: "Login failed. Try again.");
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
-      backgroundColor: const Color(0xffeaf1ff),
-      body: Column(
-        children: [
-          Expanded(
-            flex: 5,
-            child: Image.asset('assets/images/bg.jpg',
-            fit: BoxFit.cover,
-          ),
-          ),
-          Expanded(
-            flex: 6,
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(      
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(30),
+      backgroundColor: Colors.white,
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 🔼 Header Image using MediaQuery for height
+              SizedBox(
+                height: screenHeight * 0.4,
+                child: Image.asset('assets/images/bg.jpg', fit: BoxFit.contain),
+              ),
+              const SizedBox(height: 10),
+
+              Text(
+                'Welcome back to',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18, color: Colors.grey[800]),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Attendly',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: AppColor.orange,
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Welcome back to', style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold)),
-                  const Text('Attendly', style: TextStyle(fontSize: 32,fontWeight: FontWeight.bold, color: Colors.orange)),
-                  
-                  const SizedBox(height: 20),
-                  
-                  TextField(
-                    controller: emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email Address',
-                      border: OutlineInputBorder(),
+
+              const SizedBox(height: 32),
+
+              Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: emailCtrl,
+                      decoration: const InputDecoration(
+                        hintText: 'Email Address',
+                        border: OutlineInputBorder(),
                       ),
+                      validator:
+                          (value) =>
+                              value!.isEmpty ? 'Please enter your email' : null,
                     ),
-
-                  const SizedBox(height: 20),
-
-                  TextField(
-                    controller: passwordController,
-                    decoration: const InputDecoration(
-                      labelText: 'Password',
-                      border: OutlineInputBorder(),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: passwordCtrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        hintText: 'Password',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator:
+                          (value) =>
+                              value!.isEmpty
+                                  ? 'Please enter your password'
+                                  : null,
                     ),
-                    obscureText: true,
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _login,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xff003366),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
+                    const SizedBox(height: 24),
+                    isLoading
+                        ? const CircularProgressIndicator()
+                        : SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _handleLogin,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColor.lightPrimary,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text(
+                              "Login",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
                         ),
-                      ),
-                      child: const Text('Login'),
-                      style: ,
-                      },
-                      child: const Text('Forgot Password?'),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text("Don’t have an account? "),
+                        GestureDetector(
+                          onTap:
+                              () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const RegisterPage(),
+                                ),
+                              ),
+                          child: Text(
+                            'Register',
+                            style: TextStyle(
+                              color: AppColor.orange,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  ElevatedButton(
-                    onPressed: _login,
-                    child: const Text('Login'),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: emailController,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 20), 
-        ],
+        ),
       ),
-      );
+    );
   }
 }

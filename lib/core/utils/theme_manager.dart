@@ -1,5 +1,5 @@
-import 'package:attendly_app/core/constants/app_color.dart';
 import 'package:flutter/material.dart';
+import '../constants/app_color.dart';
 
 class ThemeManager {
   static final lightTheme = ThemeData(
