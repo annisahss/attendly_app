@@ -13,7 +13,7 @@ import 'presentation/pages/dashboard/dashboard_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await PreferenceService.init();
-  await initializeDateFormatting('id_ID', null); // for Indonesian date format
+  await initializeDateFormatting('en_US', null); 
 
   final isLoggedIn = PreferenceService.getLoginStatus();
   final themeMode = PreferenceService.getThemeMode();

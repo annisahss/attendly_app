@@ -1,28 +1,17 @@
+import 'package:attendly_app/data/datasources/local_database.dart';
+import 'package:sqflite/sqflite.dart';
 
-import 'local_database.dart';
 
 class AttendanceLocalDatasource {
-  Future<int> insertAttendance({
-    required int userId,
-    required String type,
-    required String timestamp,
-    double? latitude,
-    double? longitude,
-    String? location,
-  }) async {
-    final db = await LocalDatabase.database;
-    return await db.insert('absensi', {
-      'user_id': userId,
-      'type': type,
-      'timestamp': timestamp,
-      'latitude': latitude,
-      'longitude': longitude,
-      'location': location,
-    });
+  Future<Database> get _db async => await LocalDatabase.instance.database;
+
+  Future<void> insertAttendance(Map<String, dynamic> data) async {
+    final db = await _db;
+    await db.insert('absensi', data);
   }
 
-  Future<List<Map<String, dynamic>>> getAttendanceHistory(int userId) async {
-    final db = await LocalDatabase.database;
+  Future<List<Map<String, dynamic>>> fetchAttendanceByUserId(int userId) async {
+    final db = await _db;
     return await db.query(
       'absensi',
       where: 'user_id = ?',
@@ -31,8 +20,46 @@ class AttendanceLocalDatasource {
     );
   }
 
-  Future<int> deleteAttendance(int id) async {
-    final db = await LocalDatabase.database;
-    return await db.delete('absensi', where: 'id = ?', whereArgs: [id]);
+  Future<void> deleteAttendance(int id) async {
+    final db = await _db;
+    await db.delete('absensi', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<bool> hasClockedInToday(int userId) async {
+    final db = await _db;
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    final end = start.add(const Duration(days: 1));
+
+    final result = await db.query(
+      'absensi',
+      where: 'user_id = ? AND type = ? AND timestamp >= ? AND timestamp < ?',
+      whereArgs: [
+        userId,
+        'masuk',
+        start.toIso8601String(),
+        end.toIso8601String(),
+      ],
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<bool> hasClockedOutToday(int userId) async {
+    final db = await _db;
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    final end = start.add(const Duration(days: 1));
+
+    final result = await db.query(
+      'absensi',
+      where: 'user_id = ? AND type = ? AND timestamp >= ? AND timestamp < ?',
+      whereArgs: [
+        userId,
+        'pulang',
+        start.toIso8601String(),
+        end.toIso8601String(),
+      ],
+    );
+    return result.isNotEmpty;
   }
 }

@@ -2,43 +2,57 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
 class LocalDatabase {
-  static Database? _db;
+  // ✅ Singleton pattern: only one instance
+  static final LocalDatabase instance = LocalDatabase._init();
 
-  static const String dbName = 'attendly.db';
+  static Database? _database;
 
-  static Future<Database> initDb() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, dbName);
+  // ✅ Private constructor
+  LocalDatabase._init();
 
-    return openDatabase(path, version: 1, onCreate: _onCreate);
+  // ✅ Getter to access database
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+
+    _database = await _initDB('attendly.db');
+    return _database!;
   }
 
-  static Future<void> _onCreate(Database db, int version) async {
+  // ✅ Initialize DB and create tables
+  Future<Database> _initDB(String fileName) async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, fileName);
+
+    return await openDatabase(path, version: 1, onCreate: _createDB);
+  }
+
+  // ✅ Create tables: users and absensi
+  Future<void> _createDB(Database db, int version) async {
     await db.execute('''
       CREATE TABLE users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL
+        name TEXT,
+        email TEXT,
+        password TEXT
       )
     ''');
 
     await db.execute('''
       CREATE TABLE absensi (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        type TEXT NOT NULL, 
-        timestamp TEXT NOT NULL,
-        latitude REAL,
-        longitude REAL,
-        location TEXT,
-        FOREIGN KEY (user_id) REFERENCES users (id)
+        user_id INTEGER,
+        type TEXT,
+        timestamp TEXT,
+        lat REAL,
+        lng REAL,
+        location TEXT
       )
     ''');
   }
 
-  static Future<Database> get database async {
-    _db ??= await initDb();
-    return _db!;
+  // ✅ Optional: Close DB (good practice)
+  Future close() async {
+    final db = await instance.database;
+    db.close();
   }
 }

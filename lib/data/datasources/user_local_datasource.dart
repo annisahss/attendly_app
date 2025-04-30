@@ -1,39 +1,61 @@
+import 'package:attendly_app/data/datasources/local_database.dart';
 import 'package:sqflite/sqflite.dart';
-import 'local_database.dart';
 
 class UserLocalDatasource {
+  Future<Database> get _db async => await LocalDatabase.instance.database;
+
+  /// ✅ Register user
   Future<int> registerUser(String name, String email, String password) async {
-    final db = await LocalDatabase.database;
+    final db = await _db;
+
     return await db.insert('users', {
       'name': name,
       'email': email,
       'password': password,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    });
   }
 
+  /// ✅ Login user (match email & password)
   Future<Map<String, dynamic>?> loginUser(String email, String password) async {
-    final db = await LocalDatabase.database;
+    final db = await _db;
+
     final result = await db.query(
       'users',
-      where: 'LOWER(email) = ? AND password = ?',
-      whereArgs: [email.toLowerCase(), password],
+      where: 'email = ? AND password = ?',
+      whereArgs: [email, password],
     );
-    return result.isNotEmpty ? result.first : null;
+
+    if (result.isNotEmpty) {
+      return result.first;
+    }
+    return null;
   }
 
-  Future<Map<String, dynamic>?> getUserById(int id) async {
-    final db = await LocalDatabase.database;
-    final result = await db.query('users', where: 'id = ?', whereArgs: [id]);
-    return result.isNotEmpty ? result.first : null;
-  }
+  /// ✅ Get user by ID
+  Future<Map<String, dynamic>?> getUserById(int userId) async {
+    final db = await _db;
 
-  Future<int> updateUser(int id, String name, String email) async {
-    final db = await LocalDatabase.database;
-    return await db.update(
+    final result = await db.query(
       'users',
-      {'name': name, 'email': email},
       where: 'id = ?',
-      whereArgs: [id],
+      whereArgs: [userId],
+    );
+
+    if (result.isNotEmpty) {
+      return result.first;
+    }
+    return null;
+  }
+
+  /// ✅ Update user profile (name, email)
+  Future<void> updateUser(int userId, String newName, String newEmail) async {
+    final db = await _db;
+
+    await db.update(
+      'users',
+      {'name': newName, 'email': newEmail},
+      where: 'id = ?',
+      whereArgs: [userId],
     );
   }
 }

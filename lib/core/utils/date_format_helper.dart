@@ -1,11 +1,11 @@
 import 'package:intl/intl.dart';
 
 class DateFormatHelper {
-  static String formatDate(DateTime date) {
-    return DateFormat('EEEE, dd MMMM yyyy', 'id_ID').format(date);
+  String formatDate(DateTime date) {
+    return DateFormat('EEEE, dd MMMM yyyy', 'en_US').format(date);
   }
 
-  static String formatTime(DateTime dateTime) {
-    return DateFormat('HH:mm').format(dateTime);
+  String formatTime(DateTime dateTime) {
+    return DateFormat('hh:mm:ss a', 'en_US').format(dateTime);
   }
 }

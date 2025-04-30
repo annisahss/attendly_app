@@ -46,7 +46,7 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
                   final timestamp = DateTime.parse(data['timestamp']);
                   final date = DateFormat(
                     'EEEE, dd MMMM yyyy',
-                    'id_ID',
+                    'en_US',
                   ).format(timestamp);
                   final time = DateFormat('HH:mm').format(timestamp);
                   final location = data['location'] ?? 'Unknown location';

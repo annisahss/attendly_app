@@ -1,3 +1,5 @@
+import 'package:attendly_app/core/constants/app_color.dart';
+import 'package:attendly_app/data/datasources/attendance_local_datasource.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -22,6 +24,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   Position? _position;
   String? _locationString;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -35,6 +38,8 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _getLocation() async {
+    setState(() => _isLoading = true);
+
     final pos = await LocationService.getCurrentLocation();
     if (pos != null) {
       final address = await LocationService.getAddressFromLatLng(
@@ -46,10 +51,12 @@ class _DashboardPageState extends State<DashboardPage> {
         _locationString = address ?? 'Fetching location...';
       });
     }
+
+    setState(() => _isLoading = false);
   }
 
   String _getFormattedDate() {
-    return DateFormat('EEEE, dd MMMM yyyy', 'id_ID').format(DateTime.now());
+    return DateFormat('EEEE, dd MMMM yyyy', 'en_US').format(DateTime.now());
   }
 
   String _getFormattedTime() {
@@ -60,11 +67,44 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _submitAttendance(String type) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final attendance = Provider.of<AttendanceProvider>(context, listen: false);
+    final dataSource = AttendanceLocalDatasource();
 
     if (_position == null) await _getLocation();
     if (_position == null) return;
 
     final now = DateTime.now();
+
+    if (type == 'masuk') {
+      final alreadyClockedIn = await dataSource.hasClockedInToday(auth.userId!);
+      if (alreadyClockedIn) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("You already clocked in today.")),
+        );
+        return;
+      }
+    }
+
+    if (type == 'pulang') {
+      final alreadyClockedIn = await dataSource.hasClockedInToday(auth.userId!);
+      final alreadyClockedOut = await dataSource.hasClockedOutToday(
+        auth.userId!,
+      );
+
+      if (!alreadyClockedIn) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("You must clock in first.")),
+        );
+        return;
+      }
+
+      if (alreadyClockedOut) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("You already clocked out today.")),
+        );
+        return;
+      }
+    }
+
     await attendance.addAttendance(
       userId: auth.userId!,
       type: type,
@@ -74,9 +114,11 @@ class _DashboardPageState extends State<DashboardPage> {
       location: _locationString,
     );
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text("Absen $type berhasil")));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Clock ${type == 'masuk' ? 'In' : 'Out'} successful"),
+      ),
+    );
 
     if (type == 'pulang' && mounted) {
       Navigator.push(
@@ -86,125 +128,181 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: ListView(
-          children: [
-            const SizedBox(height: 32),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              const SizedBox(height: 16),
 
-            // 👤 Profile Row (Avatar + Name + Title)
-            Row(
-              children: [
-                GestureDetector(
-                  onTap:
+              // 👤 App Bar and Profile Section
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Welcome back,",
+                        style: TextStyle(
+                          fontSize: 14,
+                          color:
+                              isDarkMode
+                                  ? AppColor.darkText
+                                  : AppColor.lightText.withOpacity(0.6),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        auth.name ?? "Loading...",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color:
+                              isDarkMode
+                                  ? AppColor.darkText
+                                  : AppColor.lightText,
+                        ),
+                      ),
+                    ],
+                  ),
+                  GestureDetector(
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ProfilePage(),
+                          ),
+                        ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color:
+                              isDarkMode
+                                  ? AppColor.darkAccent
+                                  : AppColor.lightAccent,
+                          width: 2,
+                        ),
+                      ),
+                      child: const CircleAvatar(
+                        radius: 24,
+                        backgroundImage: AssetImage('assets/images/avatar.jpg'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              const SizedBox(height: 12),
+
+              // 📅 Attendance Card (Time, Date, Map, Location)
+              Expanded(
+                child: AttendanceCard(
+                  time: _getFormattedTime(),
+                  date: _getFormattedDate(),
+                  location: _locationString,
+                  map:
+                      _position == null
+                          ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                CircularProgressIndicator(
+                                  color:
+                                      isDarkMode
+                                          ? AppColor.darkAccent
+                                          : AppColor.lightAccent,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  "Getting your location...",
+                                  style: TextStyle(
+                                    color:
+                                        isDarkMode
+                                            ? AppColor.darkText.withOpacity(0.7)
+                                            : AppColor.lightText.withOpacity(
+                                              0.7,
+                                            ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                          : MapWidget(
+                            latitude: _position!.latitude,
+                            longitude: _position!.longitude,
+                          ),
+                  isDarkMode: isDarkMode,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // 🕒 Clock In / Clock Out Buttons
+              Row(
+                children: [
+                  CustomButton(
+                    text: "Clock In",
+                    color: AppColor.success,
+                    isLoading: _isLoading,
+                    onPressed: () => _submitAttendance("masuk"),
+                    icon: Icons.login_rounded,
+                  ),
+                  const SizedBox(width: 16),
+                  CustomButton(
+                    text: "Clock Out",
+                    color: AppColor.orange,
+                    isLoading: _isLoading,
+                    onPressed: () => _submitAttendance("pulang"),
+                    icon: Icons.logout_rounded,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // 📋 Attendance History Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        isDarkMode
+                            ? AppColor.darkPrimary.withOpacity(0.3)
+                            : AppColor.lightBlue,
+                    foregroundColor:
+                        isDarkMode ? AppColor.darkText : AppColor.lightPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed:
                       () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const ProfilePage()),
+                        MaterialPageRoute(
+                          builder: (_) => const AttendanceHistoryPage(),
+                        ),
                       ),
-                  child: const CircleAvatar(
-                    radius: 32,
-                    backgroundImage: AssetImage('assets/images/avatar.jpg'),
-                  ),
+                  icon: const Icon(Icons.history),
+                  label: const Text("Attendance History"),
                 ),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      auth.name ?? "Loading...",
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Text(
-                      "Software Engineer",
-                      style: TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // 💡 Motivation Text
-            const Text(
-              "Start your day with a positive mindset!",
-              style: TextStyle(fontSize: 16),
-              textAlign: TextAlign.start,
-            ),
-
-            const SizedBox(height: 24),
-
-            // 📅 Attendance Card (Time, Date, Map, Location)
-            AttendanceCard(
-              time: _getFormattedTime(),
-              date: _getFormattedDate(),
-              location: _locationString,
-              map:
-                  _position == null
-                      ? const Center(child: CircularProgressIndicator())
-                      : MapWidget(
-                        latitude: _position!.latitude,
-                        longitude: _position!.longitude,
-                      ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // 🕒 Clock In / Clock Out Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    onPressed: () => _submitAttendance("masuk"),
-                    child: const Text("Clock In"),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    onPressed: () => _submitAttendance("pulang"),
-                    child: const Text("Clock Out"),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // 📋 Attendance History Button
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEAF1FA),
-                foregroundColor: Colors.black87,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                textStyle: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              onPressed:
-                  () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const AttendanceHistoryPage(),
-                    ),
-                  ),
-              child: const Text("Attendance History"),
-            ),
-          ],
+
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
